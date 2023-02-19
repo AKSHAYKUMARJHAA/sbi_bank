@@ -14,6 +14,7 @@ public class Contact {
     @GeneratedValue
     @Column(name = "id")
     private int id;
+
     @Column(name = "email_id")
     private String emailId;
 

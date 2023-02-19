@@ -6,12 +6,11 @@ public class Transaction {
     public int getToAccount() {
         return toAccount;
     }
-
     public void setToAccount(int toAccount) {
         this.toAccount = toAccount;
     }
 
-    public int getTransferAmount() {
+    public int getTransferAmount(double v) {
         return transferAmount;
     }
 

@@ -29,7 +29,7 @@ CREATE TABLE `customer` (
 
 CREATE TABLE account_type (
 	id INT auto_increment NOT NULL,
-	`type` varchar(100) NOT NULL,
+	`type` varchar(100) NOT NULL    ,
 	created_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	updated_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	is_deleted BOOL DEFAULT 0 NULL,

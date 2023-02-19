@@ -9,14 +9,13 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "account_type")
 public class AccountType {
-
     @Id
     @GeneratedValue
     @Column(name="id")
     private Long id;
 
     @Column(name="type")
-    private String type;
+    private String accountType;
 
     @Column(name="created_date")
     @CreationTimestamp
@@ -37,12 +36,12 @@ public class AccountType {
         this.id = id;
     }
 
-    public String getType() {
-        return type;
+    public String getAccountType() {
+        return accountType;
     }
 
-    public void setType(String type) {
-        this.type = type;
+    public void setAccountType(String accountType) {
+        this.accountType = accountType;
     }
 
     public LocalDateTime getCreatedDate() {

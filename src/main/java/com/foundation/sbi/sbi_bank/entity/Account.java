@@ -1,9 +1,7 @@
 package com.foundation.sbi.sbi_bank.entity;
-
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
-
 import java.time.LocalDateTime;
 
 @Entity
@@ -27,7 +25,6 @@ public class Account {
     private AccountType accountType;
 
     @Column(name="current_balance",nullable = false)
-
     private Double currentBalance;
 
     @Column(name="created_date")
