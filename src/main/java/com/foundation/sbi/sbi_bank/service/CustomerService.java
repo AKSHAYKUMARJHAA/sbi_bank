@@ -6,6 +6,7 @@ import com.foundation.sbi.sbi_bank.entity.Account;
 import com.foundation.sbi.sbi_bank.entity.AccountType;
 import com.foundation.sbi.sbi_bank.entity.Contact;
 import com.foundation.sbi.sbi_bank.entity.Customer;
+import com.foundation.sbi.sbi_bank.exception.ResourceNotFoundException;
 import com.foundation.sbi.sbi_bank.model.*;
 import com.foundation.sbi.sbi_bank.repository.AccountRepository;
 import com.foundation.sbi.sbi_bank.repository.AccountTypeRepository;
@@ -18,8 +19,8 @@ import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.Arrays;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -35,112 +36,134 @@ public class CustomerService {
 
     public String addCustomerDetails(CustomerDetails customerDetails) {
         validateRequestData(customerDetails);
-        Account accounts = accountRepository.findByCustomer_IdentificationNumber(customerDetails.getIdentificationNumber());
-        if (accounts != null) {
-            throw new RuntimeException("Customer with same details already exists");
+        Customer customer = customerRepository.findByIdentificationNumber(customerDetails.getIdentificationNumber());
+        List<Account> accounts = accountRepository.findByCustomer_IdentificationNumber(customerDetails.getIdentificationNumber());
+        if (customer != null && !accounts.isEmpty()) {
+            for (Account account : accounts) {
+                if (account.getAccountNumber() == customerDetails.getAccountDetails().getAccountNumber()) {
+                    if (account.isDeleted()) {
+                        throw new RuntimeException("Account number is already present but deleted : " + customerDetails.getAccountDetails().getAccountNumber());
+                    }
+                    throw new RuntimeException("Account number is already present : " + customerDetails.getAccountDetails().getAccountNumber());
+                }
+                if (account.getAccountType().getAccountType().equalsIgnoreCase(customerDetails.getAccountDetails().getAccountType()) && !account.isDeleted()) {
+                    throw new RuntimeException("Account type is already present : " + customerDetails.getAccountDetails().getAccountType());
+                }
+            }
         }
-        var accountDataToSave = setAccountDataToSave(customerDetails);
+        var accountDataToSave = setAccountDataToSave(customerDetails, customer);
         accountRepository.save(accountDataToSave);
         return "Account Details added successfully";
     }
 
-    private Account setAccountDataToSave(CustomerDetails customerDetails) {
+    private Account setAccountDataToSave(CustomerDetails customerDetails, Customer customerFromDb) {
         Account account = new Account();
         account.setAccountNumber(customerDetails.getAccountDetails().getAccountNumber());
         account.setCurrentBalance(customerDetails.getAccountDetails().getCurrentBalance());
 
-        Customer customer = new Customer();
-        customer.setFirstName(customerDetails.getFirstName());
-        customer.setMiddleName(customerDetails.getMiddleName());
-        customer.setLastName(customerDetails.getLastName());
-        customer.setIdentificationNumber(customerDetails.getIdentificationNumber());
-        account.setCustomer(customer);
-
-        Contact contact = new Contact();
-        contact.setEmailId(customerDetails.getContactDetails().getEmailId());
-        contact.setPhone_No(customerDetails.getContactDetails().getPhone_No());
-        contact.setAddress(customerDetails.getContactDetails().getAddress());
-        contact.setCity(customerDetails.getContactDetails().getCity());
-        contact.setState(customerDetails.getContactDetails().getState());
-        contact.setCountry(customerDetails.getContactDetails().getCountry());
-        customer.setContact(contact);
+        if (customerFromDb == null) {
+            Customer customer = new Customer();
+            customer.setFirstName(customerDetails.getFirstName());
+            customer.setMiddleName(customerDetails.getMiddleName());
+            customer.setLastName(customerDetails.getLastName());
+            customer.setIdentificationNumber(customerDetails.getIdentificationNumber());
+            account.setCustomer(customer);
+            Contact contact = new Contact();
+            contact.setEmailId(customerDetails.getContactDetails().getEmailId());
+            contact.setPhone_No(customerDetails.getContactDetails().getPhone_No());
+            contact.setAddress(customerDetails.getContactDetails().getAddress());
+            contact.setCity(customerDetails.getContactDetails().getCity());
+            contact.setState(customerDetails.getContactDetails().getState());
+            contact.setCountry(customerDetails.getContactDetails().getCountry());
+            customer.setContact(contact);
+        } else {
+            account.setCustomer(customerFromDb);
+        }
 
         AccountType accountType = new AccountType();
         accountType.setAccountType(customerDetails.getAccountDetails().getAccountType());
         account.setAccountType(accountType);
-        Account save1 = accountRepository.save(account);
-        return save1;
+        return account;
+
     }
 
     private void validateRequestData(CustomerDetails customerDetails) {
         log.info("method call validateRequestData....");
-        if (customerDetails.getIdentificationNumber() != null) {
+        if (customerDetails.getIdentificationNumber() == null) {
             log.info("Invalid Identification number");
+            throw new RuntimeException("Invalid Identification number");
         }
-        if (customerDetails.getAccountDetails() != null) {
+        if (customerDetails.getAccountDetails() == null) {
             log.info("Account details are mandatory....");
+            throw new RuntimeException("Account details are mandatory....");
         }
     }
 
-    public CustomerDetails getCustomerDetails(String identificationNumber) {
-        Account account = accountRepository.findByCustomer_IdentificationNumber(identificationNumber);
-        if (account != null) {
-            CustomerDetails customerDetails = new CustomerDetails();
-            customerDetails.setFirstName(account.getCustomer().getFirstName());
-            customerDetails.setMiddleName(account.getCustomer().getMiddleName());
-            customerDetails.setLastName(account.getCustomer().getLastName());
-            customerDetails.setIdentificationNumber(account.getCustomer().getIdentificationNumber());
+    public List<CustomerDetails> getCustomerDetails(String identificationNumber) {
+        List<CustomerDetails> customerDetailsList = new ArrayList<>();
+        List<Account> accountList = accountRepository.findByCustomer_IdentificationNumberAndIsDeletedFalse(identificationNumber);
+        if (!accountList.isEmpty()) {
+            for (Account account : accountList) {
+                CustomerDetails customerDetails = new CustomerDetails();
+                customerDetails.setFirstName(account.getCustomer().getFirstName());
+                customerDetails.setMiddleName(account.getCustomer().getMiddleName());
+                customerDetails.setLastName(account.getCustomer().getLastName());
+                customerDetails.setIdentificationNumber(account.getCustomer().getIdentificationNumber());
 
-            AccountDetails accountDetails = new AccountDetails();
-            accountDetails.setAccountNumber(account.getAccountNumber());
-            accountDetails.setCurrentBalance(account.getCurrentBalance());
-            accountDetails.setAccountType(account.getAccountType().getAccountType());
-            customerDetails.setAccountDetails(accountDetails);
+                AccountDetails accountDetails = new AccountDetails();
+                accountDetails.setAccountNumber(account.getAccountNumber());
+                accountDetails.setCurrentBalance(account.getCurrentBalance());
+                accountDetails.setAccountType(account.getAccountType().getAccountType());
+                customerDetails.setAccountDetails(accountDetails);
 
-            ContactDetails contactDetails = new ContactDetails();
-            contactDetails.setEmailId(account.getCustomer().getContact().getEmailId());
-            contactDetails.setPhone_No(account.getCustomer().getContact().getPhone_No());
-            contactDetails.setCity(account.getCustomer().getContact().getCity());
-            contactDetails.setAddress(account.getCustomer().getContact().getAddress());
-            contactDetails.setState(account.getCustomer().getContact().getState());
-            contactDetails.setCountry(account.getCustomer().getContact().getCountry());
-            customerDetails.setContactDetails(contactDetails);
-            return customerDetails;
+                ContactDetails contactDetails = new ContactDetails();
+                contactDetails.setEmailId(account.getCustomer().getContact().getEmailId());
+                contactDetails.setPhone_No(account.getCustomer().getContact().getPhone_No());
+                contactDetails.setCity(account.getCustomer().getContact().getCity());
+                contactDetails.setAddress(account.getCustomer().getContact().getAddress());
+                contactDetails.setState(account.getCustomer().getContact().getState());
+                contactDetails.setCountry(account.getCustomer().getContact().getCountry());
+                customerDetails.setContactDetails(contactDetails);
+                customerDetailsList.add(customerDetails);
+            }
+            return customerDetailsList;
         } else {
-            return null;
+            throw new ResourceNotFoundException("No data found");
         }
     }
 
     public String deleteByAccountNumber(int accountNumber) {
         Account account = accountRepository.findByAccountNumber(accountNumber);
-        accountRepository.deleteById(account.getId());
+        account.setDeleted(true);
+        accountRepository.save(account);
         return "Data is successfully deleted";
     }
 
     public String transfer(Transaction transaction) {
         //Fetching account details for paying account
         Account fromAccount = accountRepository.findByAccountNumber(transaction.getFromAccount());
-        if (fromAccount.getCurrentBalance() < transaction.getTransferAmount(5000.0)) {
-            return "Insufficient fund";
+        if (fromAccount.getCurrentBalance() < transaction.getTransferAmount()) {
+          throw new RuntimeException("Insufficient fund");
         }
         //Deducting amount
-        var remainingBalance = fromAccount.getCurrentBalance() - transaction.getTransferAmount(5000.0);
+        var remainingBalance = fromAccount.getCurrentBalance() - transaction.getTransferAmount();
         fromAccount.setCurrentBalance(remainingBalance);
         //Updating amount into paying account
         accountRepository.save(fromAccount);
 
-
         //Fetching account details for payee account
         Account toAccount = accountRepository.findByAccountNumber(transaction.getToAccount());
         //adding amount
-        var updatedAmount = toAccount.getCurrentBalance() + transaction.getTransferAmount(5000.0);
+        var updatedAmount = toAccount.getCurrentBalance() + transaction.getTransferAmount();
         toAccount.setCurrentBalance(updatedAmount);
         //Updating amount into payee account
 
         accountRepository.save(toAccount);
-        return "Successfully Sent..";
+        return "Amount Sent Successfully..";
     }
 
+    //takes the input customerUpdate object, converts it to a JSON object,
+    // and then updates the customer object in the repository with the new values provided in the JSON object.
     public String updateCustomer(CustomerUpdate customerUpdate, String idn) {
         Customer customer = customerRepository.findByIdentificationNumber(idn);
 
@@ -156,7 +179,8 @@ public class CustomerService {
         JSONArray field = json.getJSONArray("field");
 
         //Update the particular field in Beanwarpper
-        for (Object key : field) {
+        for (int i = 0; i < field.length(); i++) {
+            Object key = field.get(i);
             Object value = json.get(key.toString());
             beanWrapper.setPropertyValue((String) key, value);
         }
@@ -166,33 +190,44 @@ public class CustomerService {
     }
 
     public String updateAccount(AccountUpdate accountUpdate, String idn) {
-        Account account = accountRepository.findByCustomer_IdentificationNumber(idn);
+        List<Account> accountList = accountRepository.findByCustomer_IdentificationNumberAndIsDeletedFalse(idn);
+        Account account = getAccount(accountUpdate.getAccountNumber(), accountList);
         ObjectMapper objectMapper = new ObjectMapper();
         JsonNode jsonNode = objectMapper.convertValue(accountUpdate, JsonNode.class);
         JSONObject json = new JSONObject(jsonNode.toString());
         BeanWrapperImpl beanWrapper = new BeanWrapperImpl(account);
         JSONArray field = json.getJSONArray("field");
-        for (Object key : field) {
-            Object value = json.get((String) key);
+        for (int i = 0; i < field.length(); i++) {
+            Object key = field.get(i);
+            Object value = json.get(key.toString());
             beanWrapper.setPropertyValue((String) key, value);
-
         }
         accountRepository.save(account);
         return "Account updated..";
     }
 
+    private static Account getAccount(int accountNumber, List<Account> accountList) {
+        for (Account acc : accountList) {
+            if (acc.getAccountNumber() == accountNumber) {
+                return acc;
+            }
+        }
+        throw new ResourceNotFoundException("Account number not found.");
+    }
+
 
     public String updateContact(ContactUpdate contactUpdate, String idn) {
         Customer customer = customerRepository.findByIdentificationNumber(idn);
-        Contact contact = contactRepository.findById(customer.getId()).get();
+        Contact contact = contactRepository.findById(customer.getContact().getId()).get();
 
         ObjectMapper objectMapper = new ObjectMapper();
         JsonNode jsonNode = objectMapper.convertValue(contactUpdate, JsonNode.class);
         JSONObject json = new JSONObject(jsonNode.toString());
         BeanWrapperImpl beanWrapper = new BeanWrapperImpl(contact);
         JSONArray field = json.getJSONArray("field");
-        for (Object key : field) {
-            Object value = json.get((String) key);
+        for (int i = 0; i < field.length(); i++) {
+            Object key = field.get(i);
+            Object value = json.get(key.toString());
             beanWrapper.setPropertyValue((String) key, value);
         }
         contactRepository.save(contact);
@@ -200,7 +235,8 @@ public class CustomerService {
     }
 
     public String updateAccountType(AccountTypeUpdate accountTypeUpdate, String idn) {
-        Account account = accountRepository.findByCustomer_IdentificationNumber(idn);
+        List<Account> accountList = accountRepository.findByCustomer_IdentificationNumberAndIsDeletedFalse(idn);
+        Account account = getAccount(accountTypeUpdate.getAccountNumber(), accountList);
         AccountType accountType = accountTypeRepository.findById(account.getAccountType().getId()).get();
 
         ObjectMapper objectMapper = new ObjectMapper();
@@ -208,8 +244,9 @@ public class CustomerService {
         JSONObject json = new JSONObject(jsonNode.toString());
         BeanWrapperImpl beanWrapper = new BeanWrapperImpl(accountType);
         JSONArray field = json.getJSONArray("field");
-        for (Object key : field) {
-            Object value = json.get((String) key);
+        for (int i = 0; i < field.length(); i++) {
+            Object key = field.get(i);
+            Object value = json.get(key.toString());
             beanWrapper.setPropertyValue((String) key, value);
         }
         accountTypeRepository.save(accountType);
