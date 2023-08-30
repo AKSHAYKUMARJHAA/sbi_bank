@@ -15,7 +15,7 @@ public class ApplicationExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     @ResponseBody
     ExceptionResponse handleResourceNotFoundException(Exception exception, HttpServletRequest request) {
-        ExceptionResponse ex = new ExceptionResponse();
+        ExceptionResponse  ex = new ExceptionResponse();
         ex.setMessage(exception.getMessage());
         ex.setUrl(request.getRequestURI());
         return ex;
