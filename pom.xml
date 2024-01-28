@@ -9,7 +9,7 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.foundation.sbi</groupId>
-	<artifactId>sbi_bank</artifactId>
+	<artifactId>sbi_bank_h2_Db</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>sbi_bank</name>
 	<description>Demo project for Spring Boot</description>

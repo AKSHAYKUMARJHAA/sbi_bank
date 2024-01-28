@@ -6,6 +6,7 @@ import com.foundation.sbi.sbi_bank.entity.Account;
 import com.foundation.sbi.sbi_bank.entity.AccountType;
 import com.foundation.sbi.sbi_bank.entity.Contact;
 import com.foundation.sbi.sbi_bank.entity.Customer;
+import com.foundation.sbi.sbi_bank.exception.InsufficientFundsException;
 import com.foundation.sbi.sbi_bank.exception.ResourceNotFoundException;
 import com.foundation.sbi.sbi_bank.model.*;
 import com.foundation.sbi.sbi_bank.repository.AccountRepository;
@@ -18,6 +19,9 @@ import org.json.JSONObject;
 import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -138,29 +142,40 @@ public class CustomerService {
         accountRepository.save(account);
         return "Data is successfully deleted";
     }
-
+    @Transactional(propagation = Propagation.REQUIRED, rollbackFor = InsufficientFundsException.class, isolation = Isolation.READ_COMMITTED)
     public String transfer(Transaction transaction) {
-        //Fetching account details for paying account
-        Account fromAccount = accountRepository.findByAccountNumber(transaction.getFromAccount());
-        if (fromAccount.getCurrentBalance() < transaction.getTransferAmount()) {
-          throw new RuntimeException("Insufficient fund");
+        try {
+            // Fetching account details for paying account
+            Account fromAccount = accountRepository.findByAccountNumber(transaction.getFromAccount());
+
+            if (fromAccount.getCurrentBalance() < transaction.getTransferAmount()) {
+                throw new InsufficientFundsException("Insufficient Fund");
+            }
+            // Deducting amount
+            var remainingBalance = fromAccount.getCurrentBalance() - transaction.getTransferAmount();
+            fromAccount.setCurrentBalance(remainingBalance);
+
+            // Updating amount into paying account
+            accountRepository.save(fromAccount);
+
+            // Fetching account details for payee account
+            Account toAccount = accountRepository.findByAccountNumber(transaction.getToAccount());
+
+            // Adding amount
+            var updatedAmount = toAccount.getCurrentBalance() + transaction.getTransferAmount();
+            toAccount.setCurrentBalance(updatedAmount);
+
+            // Updating amount into payee account
+            accountRepository.save(toAccount);
+
+            return "Amount Sent Successfully..";
+        } catch (InsufficientFundsException e) {
+            // Log the error
+            throw new InsufficientFundsException("Failed to transfer funds: " + e.getMessage());
         }
-        //Deducting amount
-        var remainingBalance = fromAccount.getCurrentBalance() - transaction.getTransferAmount();
-        fromAccount.setCurrentBalance(remainingBalance);
-        //Updating amount into paying account
-        accountRepository.save(fromAccount);
-
-        //Fetching account details for payee account
-        Account toAccount = accountRepository.findByAccountNumber(transaction.getToAccount());
-        //adding amount
-        var updatedAmount = toAccount.getCurrentBalance() + transaction.getTransferAmount();
-        toAccount.setCurrentBalance(updatedAmount);
-        //Updating amount into payee account
-
-        accountRepository.save(toAccount);
-        return "Amount Sent Successfully..";
     }
+
+
 
     //takes the input customerUpdate object, converts it to a JSON object,
     // and then updates the customer object in the repository with the new values provided in the JSON object.
